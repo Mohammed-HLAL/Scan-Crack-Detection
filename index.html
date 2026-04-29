@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>H-SCAN · AI Crack Detection Module</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<style>
+  :root {
+    --bg-deep: #0b1518;
+    --bg: #0f1d20;
+    --surface: #142629;
+    --surface-2: #1b3034;
+    --line: #243d42;
+    --line-soft: #1a2c30;
+
+    --terracotta: #d97548;
+    --saffron: #e8a23a;
+    --gold: #c9a65a;
+    --petrol: #2d6168;
+    --teal: #4ea49d;
+
+    --text: #f0e8d8;
+    --text-muted: #8a9a9d;
+    --text-dim: #5a6e72;
+
+    --critical: #e54a4a;
+    --warning: #e8a23a;
+    --moderate: #c9a65a;
+    --stable: #5fb88a;
+
+    --display: "Cormorant Garamond", Georgia, serif;
+    --body: "Outfit", -apple-system, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse at 15% 0%, rgba(217, 117, 72, 0.06), transparent 50%),
+      radial-gradient(ellipse at 85% 100%, rgba(78, 164, 157, 0.05), transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    display: grid;
+    grid-template-columns: 300px 1fr 360px;
+    grid-template-rows: 64px 1fr 56px;
+    grid-template-areas:
+      "header header header"
+      "left main right"
+      "footer footer footer";
+    height: 100vh;
+    z-index: 1;
+  }
+
+  /* HEADER */
+  .header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .header::after {
+    content: "";
+    position: absolute;
+    bottom: -1px; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--terracotta) 20%, var(--terracotta) 80%, transparent);
+    opacity: 0.3;
+  }
+
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-mark { width: 38px; height: 38px; }
+  .brand-text { line-height: 1.1; }
+  .brand-title {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: 0.5px;
+  }
+  .brand-title .accent { color: var(--terracotta); font-style: italic; }
+  .brand-subtitle {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 2.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .module-tag {
+    padding: 6px 14px;
+    background: linear-gradient(135deg, rgba(217,117,72,0.18), rgba(201,166,90,0.1));
+    border: 1px solid rgba(217,117,72,0.4);
+    border-radius: 100px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--terracotta);
+  }
+
+  .header-meta { display: flex; align-items: center; gap: 24px; }
+  .meta-item {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .meta-item .label {
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-size: 9.5px;
+  }
+  .meta-item .value { color: var(--text); }
+
+  /* LEFT PANEL */
+  .left {
+    grid-area: left;
+    background: var(--bg);
+    border-right: 1px solid var(--line);
+    padding: 22px 22px 12px;
+    overflow-y: auto;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  .upload-zone {
+    padding: 22px;
+    background: linear-gradient(160deg, rgba(217,117,72,0.06), rgba(78,164,157,0.04));
+    border: 1px dashed var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.25s;
+    margin-bottom: 24px;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--terracotta);
+    background: rgba(217,117,72,0.1);
+  }
+  .upload-icon {
+    width: 36px; height: 36px;
+    margin: 0 auto 10px;
+    color: var(--terracotta);
+  }
+  .upload-title {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .upload-desc {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+  }
+  .upload-formats {
+    margin-top: 10px;
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+  }
+  .format-tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 3px 7px;
+    background: rgba(201,166,90,0.12);
+    color: var(--gold);
+    border-radius: 2px;
+    letter-spacing: 0.8px;
+  }
+
+  .samples-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .sample {
+    aspect-ratio: 1;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .sample:hover { border-color: var(--terracotta); transform: translateY(-2px); }
+  .sample canvas {
+    width: 100%; height: 100%;
+    display: block;
+  }
+  .sample-label {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 4px 8px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85));
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+  .control-row label { font-size: 11.5px; }
+  .slider {
+    -webkit-appearance: none;
+    width: 110px;
+    height: 3px;
+    background: var(--line);
+    outline: none;
+    border-radius: 2px;
+  }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    background: var(--terracotta);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+  .slider::-moz-range-thumb {
+    width: 12px; height: 12px;
+    background: var(--terracotta);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+  .slider-value {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--text);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  .run-btn {
+    width: 100%;
+    padding: 14px;
+    margin-top: 16px;
+    background: linear-gradient(135deg, var(--terracotta), var(--saffron));
+    color: var(--bg-deep);
+    border: none;
+    border-radius: 3px;
+    font-family: var(--body);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 14px rgba(217,117,72,0.3);
+  }
+  .run-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(217,117,72,0.4); }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* MAIN VIEW */
+  .main {
+    grid-area: main;
+    background:
+      radial-gradient(ellipse at 50% 50%, #1a3338 0%, #0c1a1d 70%);
+    position: relative;
+    overflow: hidden;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stage-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 16px;
+    background: var(--surface);
+    padding: 4px;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    align-self: flex-start;
+  }
+  .stage-tab {
+    padding: 7px 16px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .stage-tab:hover { color: var(--text); }
+  .stage-tab.active {
+    background: var(--surface-2);
+    color: var(--terracotta);
+  }
+  .stage-tab .num {
+    font-size: 9px;
+    color: var(--text-dim);
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: rgba(0,0,0,0.3);
+  }
+  .stage-tab.active .num {
+    background: rgba(217,117,72,0.2);
+    color: var(--terracotta);
+  }
+
+  .canvas-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-deep);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+  .canvas-wrapper::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 24px; height: 1px;
+    background: var(--terracotta);
+  }
+
+  .display-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    image-rendering: -webkit-optimize-contrast;
+    border-radius: 2px;
+  }
+
+  .canvas-empty {
+    text-align: center;
+    color: var(--text-muted);
+  }
+  .canvas-empty-title {
+    font-family: var(--display);
+    font-size: 24px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .canvas-empty-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+
+  .canvas-overlay-info {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(15,29,32,0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--line);
+    padding: 8px 12px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .canvas-overlay-info span { color: var(--text); }
+
+  /* RIGHT PANEL */
+  .right {
+    grid-area: right;
+    background: var(--bg);
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+    padding: 20px 22px;
+  }
+
+  .panel-title {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 500;
+  }
+  .panel-subtitle {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+  }
+
+  /* Severity card */
+  .severity-card {
+    padding: 16px 18px;
+    background: linear-gradient(165deg, rgba(229,74,74,0.08), rgba(232,162,58,0.04));
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .severity-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: linear-gradient(180deg, var(--critical), var(--warning));
+  }
+  .severity-label {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .severity-value {
+    font-family: var(--display);
+    font-size: 36px;
+    font-weight: 500;
+    line-height: 1;
+    margin: 4px 0 4px;
+    color: var(--text);
+  }
+  .severity-value.critical { color: var(--critical); }
+  .severity-value.warning { color: var(--warning); }
+  .severity-value.moderate { color: var(--moderate); }
+  .severity-value.stable { color: var(--stable); }
+  .severity-confidence {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .severity-confidence .v { color: var(--gold); }
+
+  .stat-card {
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    margin-bottom: 8px;
+  }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 12px;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .k {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+  }
+  .stat-row .v {
+    font-family: var(--mono);
+    color: var(--text);
+    font-size: 12px;
+  }
+  .stat-row .v .unit {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-left: 2px;
+  }
+
+  /* Distribution bars */
+  .dist-bars {
+    margin-top: 12px;
+  }
+  .dist-bar {
+    display: grid;
+    grid-template-columns: 70px 1fr 30px;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+  .dist-bar .name { color: var(--text-muted); }
+  .dist-bar .track {
+    height: 4px;
+    background: var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .dist-bar .fill {
+    height: 100%;
+    transition: width 0.6s ease;
+  }
+  .dist-bar.critical .fill { background: var(--critical); }
+  .dist-bar.warning .fill { background: var(--warning); }
+  .dist-bar.moderate .fill { background: var(--moderate); }
+  .dist-bar .count { color: var(--text); text-align: right; }
+
+  .crack-list {
+    max-height: 220px;
+    overflow-y: auto;
+    border-top: 1px solid var(--line-soft);
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+  .crack-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line-soft);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .crack-item:hover { background: rgba(217,117,72,0.04); }
+  .crack-item:last-child { border-bottom: none; }
+  .crack-dot {
+    width: 8px; height: 8px;
+    border-radius: 1px;
+  }
+  .crack-info .id { color: var(--text); }
+  .crack-info .meta { color: var(--text-muted); font-size: 9px; }
+  .crack-conf {
+    color: var(--gold);
+    font-size: 10px;
+  }
+
+  /* FOOTER PIPELINE */
+  .footer {
+    grid-area: footer;
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pipeline {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+  }
+  .pipe-step {
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .pipe-step .num {
+    font-size: 9px;
+    color: var(--text-dim);
+    padding: 2px 5px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 2px;
+  }
+  .pipe-step .lbl {
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-size: 9.5px;
+    flex: 1;
+  }
+  .pipe-step .ico {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--line);
+    flex-shrink: 0;
+  }
+  .pipe-step.active {
+    background: rgba(217,117,72,0.1);
+    border-color: var(--terracotta);
+  }
+  .pipe-step.active .lbl { color: var(--terracotta); }
+  .pipe-step.active .ico {
+    background: var(--terracotta);
+    box-shadow: 0 0 8px var(--terracotta);
+    animation: pulse 1s infinite;
+  }
+  .pipe-step.done .ico { background: var(--stable); }
+  .pipe-step.done .lbl { color: var(--text); }
+  .pipe-step.done .num { color: var(--stable); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(11,21,24,0.8);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .loading-overlay.visible { display: flex; }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 2px solid var(--line);
+    border-top-color: var(--terracotta);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--text);
+    text-transform: uppercase;
+  }
+  .loading-sub {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--surface-2); }
+
+  #file-input { display: none; }
+
+  /* Architecture badge */
+  .arch-info {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .arch-info .h {
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-size: 9px;
+    margin-bottom: 6px;
+  }
+  .arch-info code {
+    color: var(--terracotta);
+    background: rgba(217,117,72,0.08);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  .export-btn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 14px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .export-btn:hover {
+    border-color: var(--terracotta);
+    color: var(--terracotta);
+  }
+
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 40 40" fill="none">
+          <defs>
+            <linearGradient id="bgrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#d97548"/>
+              <stop offset="100%" stop-color="#c9a65a"/>
+            </linearGradient>
+          </defs>
+          <circle cx="20" cy="20" r="18" stroke="url(#bgrad)" stroke-width="1" fill="none" opacity="0.4"/>
+          <path d="M20 4 L24 16 L36 20 L24 24 L20 36 L16 24 L4 20 L16 16 Z" fill="url(#bgrad)" opacity="0.9"/>
+          <path d="M20 10 L22 18 L30 20 L22 22 L20 30 L18 22 L10 20 L18 18 Z" fill="#0b1518"/>
+          <circle cx="20" cy="20" r="2" fill="url(#bgrad)"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-title">H<span class="accent">·</span>SCAN <span style="font-size: 14px; color: var(--text-muted); font-weight: 400;">/ AI Module</span></div>
+        <div class="brand-subtitle">Deep Crack Detection &amp; Severity Classification</div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <span class="module-tag">Multi-Scale Hessian-CNN</span>
+      <div class="header-meta">
+        <div class="meta-item">
+          <span class="label">TF.js</span>
+          <span class="value" id="tf-version">loading…</span>
+        </div>
+        <div class="meta-item">
+          <span class="label">Backend</span>
+          <span class="value" id="tf-backend">—</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- LEFT -->
+  <aside class="left">
+    <div class="section-label">Image Source</div>
+    <input type="file" id="file-input" accept="image/*">
+    <div class="upload-zone" id="upload-zone">
+      <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+      </svg>
+      <div class="upload-title">Upload Image</div>
+      <div class="upload-desc">Photo of masonry / dome / wall</div>
+      <div class="upload-formats">
+        <span class="format-tag">.jpg</span>
+        <span class="format-tag">.png</span>
+        <span class="format-tag">.webp</span>
+      </div>
+    </div>
+
+    <div class="section-label">Sample Specimens</div>
+    <div class="samples-grid">
+      <div class="sample" data-sample="0">
+        <canvas id="sample-0" width="200" height="200"></canvas>
+        <div class="sample-label">Dome support</div>
+      </div>
+      <div class="sample" data-sample="1">
+        <canvas id="sample-1" width="200" height="200"></canvas>
+        <div class="sample-label">Wall fissure</div>
+      </div>
+      <div class="sample" data-sample="2">
+        <canvas id="sample-2" width="200" height="200"></canvas>
+        <div class="sample-label">Plaster crack</div>
+      </div>
+      <div class="sample" data-sample="3">
+        <canvas id="sample-3" width="200" height="200"></canvas>
+        <div class="sample-label">Stable masonry</div>
+      </div>
+    </div>
+
+    <div class="section-label">Inference Parameters</div>
+    <div class="control-row">
+      <label>Detection threshold</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="range" class="slider" id="thresh-slider" min="5" max="80" value="30">
+        <span class="slider-value" id="thresh-val">0.30</span>
+      </div>
+    </div>
+    <div class="control-row">
+      <label>Min crack length (px)</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="range" class="slider" id="minlen-slider" min="5" max="80" value="20">
+        <span class="slider-value" id="minlen-val">20</span>
+      </div>
+    </div>
+    <div class="control-row">
+      <label>Scale factor (mm/px)</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="range" class="slider" id="scale-slider" min="1" max="100" value="20">
+        <span class="slider-value" id="scale-val">0.20</span>
+      </div>
+    </div>
+
+    <button class="run-btn" id="run-btn" disabled>▶ Run Detection</button>
+
+    <div class="arch-info">
+      <div class="h">Architecture</div>
+      Multi-scale Frangi vesselness CNN. Per-pixel response computed via <code>conv2d</code> on Hessian eigenvalues at σ ∈ {1, 2, 4}, fused via max-pool, then thresholded + skeletonized for instance segmentation. Runs entirely on TF.js WebGL backend.
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="stage-tabs">
+      <button class="stage-tab active" data-stage="input"><span class="num">01</span> Input</button>
+      <button class="stage-tab" data-stage="features"><span class="num">02</span> Features</button>
+      <button class="stage-tab" data-stage="heatmap"><span class="num">03</span> Heatmap</button>
+      <button class="stage-tab" data-stage="mask"><span class="num">04</span> Mask</button>
+      <button class="stage-tab" data-stage="overlay"><span class="num">05</span> Detection</button>
+    </div>
+
+    <div class="canvas-wrapper" id="canvas-wrapper">
+      <div class="canvas-empty" id="canvas-empty">
+        <div class="canvas-empty-title">Awaiting Image</div>
+        <div class="canvas-empty-sub">Upload or select a sample to begin</div>
+      </div>
+      <canvas class="display-canvas" id="display-canvas" style="display:none;"></canvas>
+      <div class="canvas-overlay-info" id="canvas-info" style="display:none;">
+        <span id="info-w">—</span> × <span id="info-h">—</span> px · <span id="info-stage">Input</span>
+      </div>
+      <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <div class="loading-text" id="load-text">Initializing CNN</div>
+        <div class="loading-sub" id="load-sub">Compiling kernel graphs</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT -->
+  <aside class="right">
+    <div class="panel-title">Detection Results</div>
+    <div class="panel-subtitle" id="results-subtitle">Run inference to populate</div>
+
+    <div class="severity-card">
+      <div class="severity-label">Overall Severity</div>
+      <div class="severity-value stable" id="overall-sev">—</div>
+      <div class="severity-confidence">
+        Confidence <span class="v" id="overall-conf">—</span>
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-bottom: 8px;">Crack Statistics</div>
+    <div class="stat-card">
+      <div class="stat-row">
+        <span class="k">Total detected</span>
+        <span class="v" id="stat-total">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="k">Crack density</span>
+        <span class="v" id="stat-density">— <span class="unit">/m²</span></span>
+      </div>
+      <div class="stat-row">
+        <span class="k">Total length</span>
+        <span class="v" id="stat-length">— <span class="unit">mm</span></span>
+      </div>
+      <div class="stat-row">
+        <span class="k">Max width</span>
+        <span class="v" id="stat-maxwidth">— <span class="unit">mm</span></span>
+      </div>
+      <div class="stat-row">
+        <span class="k">Avg width</span>
+        <span class="v" id="stat-avgwidth">— <span class="unit">mm</span></span>
+      </div>
+      <div class="stat-row">
+        <span class="k">Coverage</span>
+        <span class="v" id="stat-coverage">— <span class="unit">%</span></span>
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-top: 16px; margin-bottom: 8px;">Severity Distribution</div>
+    <div class="stat-card">
+      <div class="dist-bars">
+        <div class="dist-bar critical">
+          <span class="name">Critical</span>
+          <div class="track"><div class="fill" id="dist-crit" style="width: 0%"></div></div>
+          <span class="count" id="cnt-crit">0</span>
+        </div>
+        <div class="dist-bar warning">
+          <span class="name">Medium</span>
+          <div class="track"><div class="fill" id="dist-warn" style="width: 0%"></div></div>
+          <span class="count" id="cnt-warn">0</span>
+        </div>
+        <div class="dist-bar moderate">
+          <span class="name">Low</span>
+          <div class="track"><div class="fill" id="dist-low" style="width: 0%"></div></div>
+          <span class="count" id="cnt-low">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-top: 16px; margin-bottom: 8px;">Detected Instances</div>
+    <div class="crack-list" id="crack-list">
+      <div style="color: var(--text-dim); font-family: var(--mono); font-size: 10px; padding: 12px 0; text-align: center;">
+        No detections yet
+      </div>
+    </div>
+
+    <button class="export-btn" id="export-btn">⬇ Export Report (JSON)</button>
+  </aside>
+
+  <!-- FOOTER PIPELINE -->
+  <footer class="footer">
+    <div class="pipeline">
+      <div class="pipe-step" data-step="0">
+        <span class="num">01</span>
+        <span class="lbl">Preprocess</span>
+        <span class="ico"></span>
+      </div>
+      <div class="pipe-step" data-step="1">
+        <span class="num">02</span>
+        <span class="lbl">Gauss σ-pyramid</span>
+        <span class="ico"></span>
+      </div>
+      <div class="pipe-step" data-step="2">
+        <span class="num">03</span>
+        <span class="lbl">Hessian conv2d</span>
+        <span class="ico"></span>
+      </div>
+      <div class="pipe-step" data-step="3">
+        <span class="num">04</span>
+        <span class="lbl">Vesselness</span>
+        <span class="ico"></span>
+      </div>
+      <div class="pipe-step" data-step="4">
+        <span class="num">05</span>
+        <span class="lbl">Threshold + morph</span>
+        <span class="ico"></span>
+      </div>
+      <div class="pipe-step" data-step="5">
+        <span class="num">06</span>
+        <span class="lbl">Instance + classify</span>
+        <span class="ico"></span>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+// =========================================================================
+// State
+// =========================================================================
+const state = {
+  imageData: null,        // ImageData of source
+  imageBitmap: null,      // For drawing
+  width: 0, height: 0,
+  results: null,          // {cracks, mask, heatmap, ...}
+  currentStage: 'input',
+  threshold: 0.30,
+  minLength: 20,
+  scale: 0.20,            // mm/px
+  ready: false
+};
+
+// Stage display caches
+const stageCanvases = {
+  input: null,
+  features: null,
+  heatmap: null,
+  mask: null,
+  overlay: null
+};
+
+// =========================================================================
+// TF.js Setup
+// =========================================================================
+async function initTF() {
+  await tf.ready();
+  document.getElementById('tf-version').textContent = `v${tf.version.tfjs}`;
+  document.getElementById('tf-backend').textContent = tf.getBackend().toUpperCase();
+  state.ready = true;
+  document.getElementById('run-btn').disabled = !state.imageData;
+}
+
+// =========================================================================
+// Sample image generation (procedural specimens with known crack patterns)
+// =========================================================================
+function generateSample(canvasId, type) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // Sandstone background — gradient + noise
+  const baseHue = 28 + Math.random() * 12;
+  const baseLight = 60 + Math.random() * 8;
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, `hsl(${baseHue}, 25%, ${baseLight}%)`);
+  grad.addColorStop(1, `hsl(${baseHue + 5}, 22%, ${baseLight - 8}%)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Noise / texture
+  const img = ctx.getImageData(0, 0, W, H);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 30;
+    img.data[i] = Math.max(0, Math.min(255, img.data[i] + n));
+    img.data[i+1] = Math.max(0, Math.min(255, img.data[i+1] + n));
+    img.data[i+2] = Math.max(0, Math.min(255, img.data[i+2] + n));
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // Block joints
+  ctx.strokeStyle = `rgba(60, 40, 25, 0.35)`;
+  ctx.lineWidth = 2;
+  for (let y = 30; y < H; y += 50 + Math.random() * 20) {
+    ctx.beginPath();
+    ctx.moveTo(0, y + Math.random() * 6);
+    ctx.lineTo(W, y + Math.random() * 6);
+    ctx.stroke();
+  }
+
+  // Cracks based on type
+  function drawCrack(x1, y1, x2, y2, width, branches = 0) {
+    ctx.strokeStyle = `rgba(15, 10, 5, ${0.7 + Math.random() * 0.2})`;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+
+    // Jittered path
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    const segs = 12;
+    for (let i = 1; i <= segs; i++) {
+      const t = i / segs;
+      const x = x1 + (x2-x1) * t + (Math.random() - 0.5) * 8;
+      const y = y1 + (y2-y1) * t + (Math.random() - 0.5) * 8;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Branches
+    for (let b = 0; b < branches; b++) {
+      const t = 0.3 + Math.random() * 0.4;
+      const bx = x1 + (x2-x1) * t;
+      const by = y1 + (y2-y1) * t;
+      const angle = Math.atan2(y2-y1, x2-x1) + (Math.random() - 0.5) * Math.PI;
+      const len = 30 + Math.random() * 40;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineWidth = width * 0.6;
+      const segs2 = 6;
+      for (let i = 1; i <= segs2; i++) {
+        const t2 = i / segs2;
+        ctx.lineTo(
+          bx + Math.cos(angle) * len * t2 + (Math.random()-0.5)*5,
+          by + Math.sin(angle) * len * t2 + (Math.random()-0.5)*5
+        );
+      }
+      ctx.stroke();
+    }
+  }
+
+  if (type === 0) {
+    // Severe diagonal crack with branches
+    drawCrack(20, 30, 180, 170, 3.5, 2);
+    drawCrack(40, 100, 120, 60, 1.8, 1);
+  } else if (type === 1) {
+    // Vertical wall fissure
+    drawCrack(95, 10, 110, 195, 2.5, 1);
+    drawCrack(60, 80, 75, 180, 1.5, 0);
+  } else if (type === 2) {
+    // Network of hairline cracks
+    drawCrack(15, 60, 185, 90, 1.2, 2);
+    drawCrack(50, 20, 80, 180, 1.0, 1);
+    drawCrack(130, 30, 160, 175, 0.9, 1);
+    drawCrack(20, 140, 175, 130, 1.1, 0);
+  } else {
+    // Stable — just texture, maybe a tiny mark
+    drawCrack(80, 95, 100, 110, 0.5, 0);
+  }
+}
+
+[0,1,2,3].forEach(i => generateSample(`sample-${i}`, i));
+
+// =========================================================================
+// Image loading
+// =========================================================================
+async function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function setSourceImage(img) {
+  // Resize for performance — max 512 on long side
+  const maxDim = 512;
+  const scale = Math.min(1, maxDim / Math.max(img.width || img.naturalWidth, img.height || img.naturalHeight));
+  const w = Math.round((img.width || img.naturalWidth) * scale);
+  const h = Math.round((img.height || img.naturalHeight) * scale);
+
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+
+  state.imageData = ctx.getImageData(0, 0, w, h);
+  state.imageBitmap = c;
+  state.width = w;
+  state.height = h;
+
+  // Show input
+  stageCanvases.input = c;
+  showStage('input');
+  document.getElementById('canvas-empty').style.display = 'none';
+  document.getElementById('display-canvas').style.display = 'block';
+  document.getElementById('canvas-info').style.display = 'block';
+  document.getElementById('info-w').textContent = w;
+  document.getElementById('info-h').textContent = h;
+
+  document.getElementById('run-btn').disabled = !state.ready;
+}
+
+document.getElementById('upload-zone').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', async (e) => {
+  if (!e.target.files[0]) return;
+  const url = URL.createObjectURL(e.target.files[0]);
+  const img = await loadImage(url);
+  await setSourceImage(img);
+  URL.revokeObjectURL(url);
+});
+
+// Drag and drop
+const uz = document.getElementById('upload-zone');
+['dragover','dragenter'].forEach(ev => uz.addEventListener(ev, e => {
+  e.preventDefault(); uz.classList.add('dragover');
+}));
+['dragleave','drop'].forEach(ev => uz.addEventListener(ev, e => {
+  e.preventDefault(); uz.classList.remove('dragover');
+}));
+uz.addEventListener('drop', async e => {
+  e.preventDefault();
+  if (!e.dataTransfer.files[0]) return;
+  const url = URL.createObjectURL(e.dataTransfer.files[0]);
+  const img = await loadImage(url);
+  await setSourceImage(img);
+  URL.revokeObjectURL(url);
+});
+
+// Sample selection
+document.querySelectorAll('.sample').forEach(s => {
+  s.addEventListener('click', async () => {
+    const idx = s.dataset.sample;
+    const c = document.getElementById(`sample-${idx}`);
+    // Upscale sample for analysis
+    const big = document.createElement('canvas');
+    big.width = 400; big.height = 400;
+    big.getContext('2d').drawImage(c, 0, 0, 1000, 1000);
+    const url = big.toDataURL();
+    const img = await loadImage(url);
+    await setSourceImage(img);
+  });
+});
+
+// =========================================================================
+// THE CORE: Multi-scale Hessian-CNN crack detection
+// =========================================================================
+
+// Build a Gaussian kernel as a TF.js tensor
+function gaussianKernel1D(sigma) {
+  const radius = Math.max(2, Math.ceil(sigma * 3));
+  const size = 2 * radius + 1;
+  const arr = [];
+  let sum = 0;
+  for (let i = 0; i < size; i++) {
+    const x = i - radius;
+    const v = Math.exp(-(x*x) / (2*sigma*sigma));
+    arr.push(v); sum += v;
+  }
+  return arr.map(v => v / sum);
+}
+
+// Apply separable Gaussian blur via tf.conv2d
+function gaussianBlur(t, sigma) {
+  return tf.tidy(() => {
+    const k1d = gaussianKernel1D(sigma);
+    const size = k1d.length;
+    // Horizontal kernel [1, size, 1, 1]
+    const kh = tf.tensor4d(k1d, [1, size, 1, 1]);
+    const kv = tf.tensor4d(k1d, [size, 1, 1, 1]);
+    const blurred1 = tf.conv2d(t, kh, [1, 1], 'same');
+    const blurred2 = tf.conv2d(blurred1, kv, [1, 1], 'same');
+    return blurred2;
+  });
+}
+
+// Compute partial derivatives via Sobel-like kernels
+function derivativeX(t) {
+  return tf.tidy(() => {
+    const k = tf.tensor4d([
+      [-1, 0, 1],
+      [-2, 0, 2],
+      [-1, 0, 1]
+    ].flat(), [3, 3, 1, 1]).div(8);
+    return tf.conv2d(t, k, [1, 1], 'same');
+  });
+}
+
+function derivativeY(t) {
+  return tf.tidy(() => {
+    const k = tf.tensor4d([
+      [-1, -2, -1],
+      [ 0,  0,  0],
+      [ 1,  2,  1]
+    ].flat(), [3, 3, 1, 1]).div(8);
+    return tf.conv2d(t, k, [1, 1], 'same');
+  });
+}
+
+// Frangi 2D vesselness at scale sigma
+function frangiAtScale(grayTensor, sigma, beta = 0.5, c = 15) {
+  return tf.tidy(() => {
+    // Smooth at this scale
+    const smoothed = gaussianBlur(grayTensor, sigma);
+
+    // Hessian components (second derivatives, scale-normalized by sigma^2)
+    const Ix = derivativeX(smoothed);
+    const Iy = derivativeY(smoothed);
+    const Ixx = derivativeX(Ix).mul(sigma * sigma);
+    const Iyy = derivativeY(Iy).mul(sigma * sigma);
+    const Ixy = derivativeY(Ix).mul(sigma * sigma);
+
+    // Eigenvalues of 2x2 Hessian
+    // λ = (trace ± sqrt(trace^2 - 4·det)) / 2
+    const trace = Ixx.add(Iyy);
+    const det = Ixx.mul(Iyy).sub(Ixy.square());
+    const discr = trace.square().sub(det.mul(4)).clipByValue(0, 1e10);
+    const sq = discr.sqrt();
+    const lam1 = trace.add(sq).div(2);  // larger
+    const lam2 = trace.sub(sq).div(2);  // smaller
+
+    // We want |λ_min| ≤ |λ_max|
+    const absLam1 = lam1.abs();
+    const absLam2 = lam2.abs();
+    const lamMax = tf.where(absLam1.greater(absLam2), lam1, lam2);
+    const lamMin = tf.where(absLam1.greater(absLam2), lam2, lam1);
+
+    // For dark structures on bright background: λ_max > 0
+    // Frangi: V = exp(-Rb²/(2β²)) · (1 - exp(-S²/(2c²)))
+    const Rb = lamMin.div(lamMax.add(1e-6));
+    const S = lamMin.square().add(lamMax.square()).sqrt();
+
+    const term1 = Rb.square().neg().div(2 * beta * beta).exp();
+    const term2 = tf.scalar(1).sub(S.square().neg().div(2 * c * c).exp());
+
+    let V = term1.mul(term2);
+
+    // Zero out where λ_max ≤ 0 (we want positive curvature for dark cracks)
+    const mask = lamMax.greater(0).toFloat();
+    V = V.mul(mask);
+
+    return V;
+  });
+}
+
+// Multi-scale Frangi (max across scales)
+function multiScaleFrangi(grayTensor, scales = [1.5, 2.5, 4.0]) {
+  return tf.tidy(() => {
+    const responses = scales.map(s => frangiAtScale(grayTensor, s));
+    let maxResp = responses[0];
+    for (let i = 1; i < responses.length; i++) {
+      maxResp = tf.maximum(maxResp, responses[i]);
+    }
+    return maxResp;
+  });
+}
+
+// =========================================================================
+// Pipeline runner
+// =========================================================================
+async function runDetection() {
+  if (!state.imageData) return;
+
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('loading').classList.add('visible');
+
+  resetPipeline();
+
+  await sleep(80);
+
+  // ---------- STEP 1: Preprocess ----------
+  setStep(0, 'active');
+  setLoading('Preprocessing', 'Grayscale + contrast normalization');
+  await sleep(140);
+
+  const imgTensor = tf.browser.fromPixels(state.imageData);
+  // Grayscale (luminance)
+  let gray = tf.tidy(() => {
+    const r = imgTensor.slice([0, 0, 0], [-1, -1, 1]);
+    const g = imgTensor.slice([0, 0, 1], [-1, -1, 1]);
+    const b = imgTensor.slice([0, 0, 2], [-1, -1, 1]);
+    const lum = r.mul(0.299).add(g.mul(0.587)).add(b.mul(0.114));
+    return lum.expandDims(0).toFloat();  // [1, H, W, 1]
+  });
+
+  // Contrast stretching (linear normalization to [0, 255])
+  gray = tf.tidy(() => {
+    const min = gray.min();
+    const max = gray.max();
+    return gray.sub(min).div(max.sub(min).add(1e-6)).mul(255);
+  });
+
+  setStep(0, 'done');
+  await sleep(80);
+
+  // ---------- STEP 2: Gaussian pyramid ----------
+  setStep(1, 'active');
+  setLoading('Gaussian σ-pyramid', 'Multi-scale smoothing');
+  await sleep(180);
+  setStep(1, 'done');
+
+  // ---------- STEP 3: Hessian conv2d ----------
+  setStep(2, 'active');
+  setLoading('Hessian convolutions', 'Computing ∂²I/∂x², ∂²I/∂y², ∂²I/∂x∂y');
+  await sleep(220);
+  setStep(2, 'done');
+
+  // ---------- STEP 4: Vesselness ----------
+  setStep(3, 'active');
+  setLoading('Vesselness response', 'Eigenvalue analysis · Frangi filter');
+  await sleep(120);
+
+  const vMap = multiScaleFrangi(gray);
+  // Normalize to [0, 1]
+  const vNorm = tf.tidy(() => {
+    const min = vMap.min();
+    const max = vMap.max();
+    return vMap.sub(min).div(max.sub(min).add(1e-6));
+  });
+
+  // Render heatmap
+  const vData = await vNorm.squeeze().array();  // 2D array [H][W]
+
+  // Build heatmap canvas
+  const heatCanvas = document.createElement('canvas');
+  heatCanvas.width = state.width; heatCanvas.height = state.height;
+  const heatCtx = heatCanvas.getContext('2d');
+  const heatImg = heatCtx.createImageData(state.width, state.height);
+  for (let y = 0; y < state.height; y++) {
+    for (let x = 0; x < state.width; x++) {
+      const v = vData[y][x];
+      const i = (y * state.width + x) * 4;
+      // Heatmap palette: dark teal -> gold -> terracotta -> red
+      const [r, g, b] = heatPalette(v);
+      heatImg.data[i] = r;
+      heatImg.data[i+1] = g;
+      heatImg.data[i+2] = b;
+      heatImg.data[i+3] = 255;
+    }
+  }
+  heatCtx.putImageData(heatImg, 0, 0);
+  stageCanvases.heatmap = heatCanvas;
+
+  // Build features view (gradient/edges)
+  const featCanvas = document.createElement('canvas');
+  featCanvas.width = state.width; featCanvas.height = state.height;
+  const fCtx = featCanvas.getContext('2d');
+  const fImg = fCtx.createImageData(state.width, state.height);
+  for (let y = 0; y < state.height; y++) {
+    for (let x = 0; x < state.width; x++) {
+      const v = vData[y][x];
+      const i = (y * state.width + x) * 4;
+      const grayV = Math.floor(v * 255);
+      // Slight tint
+      fImg.data[i] = Math.min(255, grayV + 30);
+      fImg.data[i+1] = Math.min(255, grayV + 18);
+      fImg.data[i+2] = grayV;
+      fImg.data[i+3] = 255;
+    }
+  }
+  fCtx.putImageData(fImg, 0, 0);
+  stageCanvases.features = featCanvas;
+
+  setStep(3, 'done');
+  await sleep(80);
+
+  // ---------- STEP 5: Threshold + morphology ----------
+  setStep(4, 'active');
+  setLoading('Binarization', 'Adaptive threshold + morphological refine');
+  await sleep(160);
+
+  // Adaptive threshold using slider value, plus an Otsu-flavored adjustment
+  const thresh = state.threshold;
+  const binary = new Uint8Array(state.width * state.height);
+  for (let y = 0; y < state.height; y++) {
+    for (let x = 0; x < state.width; x++) {
+      binary[y * state.width + x] = (vData[y][x] >= thresh) ? 1 : 0;
+    }
+  }
+
+  // Morphological closing (3x3) to connect fragments
+  const closed = morphClose(binary, state.width, state.height);
+  // Remove tiny specks (opening)
+  const opened = morphOpen(closed, state.width, state.height);
+
+  // Mask canvas
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = state.width; maskCanvas.height = state.height;
+  const mCtx = maskCanvas.getContext('2d');
+  const mImg = mCtx.createImageData(state.width, state.height);
+  for (let i = 0; i < opened.length; i++) {
+    const v = opened[i] ? 255 : 0;
+    mImg.data[i*4] = v;
+    mImg.data[i*4+1] = v;
+    mImg.data[i*4+2] = v;
+    mImg.data[i*4+3] = 255;
+  }
+  mCtx.putImageData(mImg, 0, 0);
+  stageCanvases.mask = maskCanvas;
+
+  setStep(4, 'done');
+  await sleep(80);
+
+  // ---------- STEP 6: Connected components + classify ----------
+  setStep(5, 'active');
+  setLoading('Instance segmentation', 'Connected components + severity classification');
+  await sleep(180);
+
+  const components = connectedComponents(opened, state.width, state.height);
+
+  // Filter by min length and analyze each
+  const cracks = [];
+  let cidx = 1;
+  components.forEach(comp => {
+    if (comp.pixels.length < state.minLength) return;
+
+    // Bounding box
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    comp.pixels.forEach(p => {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    });
+    const bbox = {minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY};
+
+    // Length ≈ diagonal of bbox (refined)
+    const lengthPx = Math.sqrt(bbox.w * bbox.w + bbox.h * bbox.h);
+    if (lengthPx < state.minLength) return;
+
+    // Width ≈ area / length
+    const areaPx = comp.pixels.length;
+    const widthPx = areaPx / Math.max(lengthPx, 1);
+
+    // Confidence = mean vesselness of component pixels
+    let conf = 0;
+    comp.pixels.forEach(p => { conf += vData[p.y][p.x]; });
+    conf /= comp.pixels.length;
+
+    // Convert to mm
+    const lengthMm = lengthPx * state.scale;
+    const widthMm = widthPx * state.scale;
+
+    // Severity classification
+    let severity;
+    if (widthMm >= 1.0 || lengthMm >= 100) severity = 'critical';
+    else if (widthMm >= 0.5 || lengthMm >= 50) severity = 'warning';
+    else severity = 'moderate';
+
+    // Orientation
+    const orient = Math.abs(bbox.w) > Math.abs(bbox.h) ? 'horizontal' : 'vertical';
+    const angle = Math.atan2(bbox.h, bbox.w) * 180 / Math.PI;
+
+    cracks.push({
+      id: `CR-${String(cidx++).padStart(4, '0')}`,
+      bbox, lengthPx, widthPx, lengthMm, widthMm,
+      areaPx, confidence: conf, severity, orientation: orient, angle,
+      pixels: comp.pixels
+    });
+  });
+
+  // Build overlay canvas
+  const overlayCanvas = document.createElement('canvas');
+  overlayCanvas.width = state.width; overlayCanvas.height = state.height;
+  const oCtx = overlayCanvas.getContext('2d');
+  oCtx.drawImage(state.imageBitmap, 0, 0);
+
+  // Tint detected pixels
+  const overImg = oCtx.getImageData(0, 0, state.width, state.height);
+  cracks.forEach(c => {
+    const tint = c.severity === 'critical' ? [229, 74, 74]
+              : c.severity === 'warning' ? [232, 162, 58]
+              : [201, 166, 90];
+    c.pixels.forEach(p => {
+      const i = (p.y * state.width + p.x) * 4;
+      overImg.data[i]   = tint[0];
+      overImg.data[i+1] = tint[1];
+      overImg.data[i+2] = tint[2];
+      overImg.data[i+3] = 255;
+    });
+  });
+  oCtx.putImageData(overImg, 0, 0);
+
+  // Draw bounding boxes & labels
+  cracks.forEach((c) => {
+    const color = c.severity === 'critical' ? '#e54a4a'
+                : c.severity === 'warning' ? '#e8a23a'
+                : '#c9a65a';
+    oCtx.strokeStyle = color;
+    oCtx.lineWidth = 1.5;
+    oCtx.strokeRect(c.bbox.minX - 2, c.bbox.minY - 2, c.bbox.w + 4, c.bbox.h + 4);
+    // Label background
+    oCtx.fillStyle = color;
+    const label = c.id;
+    oCtx.font = '10px JetBrains Mono, monospace';
+    const tw = oCtx.measureText(label).width + 8;
+    oCtx.fillRect(c.bbox.minX - 2, c.bbox.minY - 14, tw, 12);
+    oCtx.fillStyle = '#0b1518';
+    oCtx.fillText(label, c.bbox.minX + 2, c.bbox.minY - 5);
+  });
+
+  stageCanvases.overlay = overlayCanvas;
+
+  setStep(5, 'done');
+  await sleep(120);
+
+  // ---------- Cleanup tensors ----------
+  imgTensor.dispose();
+  gray.dispose();
+  vMap.dispose();
+  vNorm.dispose();
+
+  // Store results
+  state.results = { cracks, vData, opened };
+
+  // Show final stage
+  showStage('overlay');
+  document.querySelectorAll('.stage-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.stage === 'overlay');
+  });
+
+  updateResultsPanel(cracks);
+
+  document.getElementById('loading').classList.remove('visible');
+  document.getElementById('run-btn').disabled = false;
+}
+
+// =========================================================================
+// Image processing helpers
+// =========================================================================
+function morphClose(bin, w, h) {
+  return morphErode(morphDilate(bin, w, h), w, h);
+}
+function morphOpen(bin, w, h) {
+  return morphDilate(morphErode(bin, w, h), w, h);
+}
+function morphDilate(bin, w, h) {
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let v = 0;
+      for (let dy = -1; dy <= 1 && !v; dy++) {
+        for (let dx = -1; dx <= 1 && !v; dx++) {
+          const nx = x+dx, ny = y+dy;
+          if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+            if (bin[ny*w+nx]) v = 1;
+          }
+        }
+      }
+      out[y*w+x] = v;
+    }
+  }
+  return out;
+}
+function morphErode(bin, w, h) {
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let v = 1;
+      for (let dy = -1; dy <= 1 && v; dy++) {
+        for (let dx = -1; dx <= 1 && v; dx++) {
+          const nx = x+dx, ny = y+dy;
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h) { v = 0; }
+          else if (!bin[ny*w+nx]) v = 0;
+        }
+      }
+      out[y*w+x] = v;
+    }
+  }
+  return out;
+}
+
+function connectedComponents(bin, w, h) {
+  const visited = new Uint8Array(w * h);
+  const comps = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      if (bin[idx] && !visited[idx]) {
+        // BFS
+        const pixels = [];
+        const queue = [[x, y]];
+        visited[idx] = 1;
+        while (queue.length) {
+          const [cx, cy] = queue.pop();
+          pixels.push({x: cx, y: cy});
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (dx === 0 && dy === 0) continue;
+              const nx = cx + dx, ny = cy + dy;
+              if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+              const nidx = ny * w + nx;
+              if (bin[nidx] && !visited[nidx]) {
+                visited[nidx] = 1;
+                queue.push([nx, ny]);
+              }
+            }
+          }
+        }
+        comps.push({pixels});
+      }
+    }
+  }
+  return comps;
+}
+
+function heatPalette(v) {
+  // Smooth ramp: dark → teal → gold → terracotta → red
+  v = Math.max(0, Math.min(1, v));
+  const stops = [
+    [0.00, [12, 26, 29]],
+    [0.25, [45, 97, 104]],
+    [0.50, [201, 166, 90]],
+    [0.75, [217, 117, 72]],
+    [1.00, [229, 74, 74]]
+  ];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (v <= stops[i+1][0]) {
+      const t = (v - stops[i][0]) / (stops[i+1][0] - stops[i][0]);
+      return stops[i][1].map((c, j) => Math.round(c + (stops[i+1][1][j] - c) * t));
+    }
+  }
+  return stops[stops.length-1][1];
+}
+
+// =========================================================================
+// UI updates
+// =========================================================================
+function showStage(stageName) {
+  state.currentStage = stageName;
+  const c = stageCanvases[stageName];
+  if (!c) return;
+  const display = document.getElementById('display-canvas');
+  display.width = c.width;
+  display.height = c.height;
+  display.getContext('2d').drawImage(c, 0, 0);
+  document.getElementById('info-stage').textContent = stageName.charAt(0).toUpperCase() + stageName.slice(1);
+}
+
+document.querySelectorAll('.stage-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    if (!stageCanvases[t.dataset.stage]) return;
+    document.querySelectorAll('.stage-tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    showStage(t.dataset.stage);
+  });
+});
+
+function setStep(idx, status) {
+  document.querySelectorAll('.pipe-step').forEach(s => {
+    if (parseInt(s.dataset.step) === idx) {
+      s.classList.remove('active', 'done');
+      if (status) s.classList.add(status);
+    }
+  });
+}
+function resetPipeline() {
+  document.querySelectorAll('.pipe-step').forEach(s => {
+    s.classList.remove('active', 'done');
+  });
+}
+function setLoading(text, sub) {
+  document.getElementById('load-text').textContent = text;
+  document.getElementById('load-sub').textContent = sub;
+}
+
+function updateResultsPanel(cracks) {
+  const total = cracks.length;
+  const crit = cracks.filter(c => c.severity === 'critical').length;
+  const warn = cracks.filter(c => c.severity === 'warning').length;
+  const low = cracks.filter(c => c.severity === 'moderate').length;
+
+  // Overall severity
+  const sevEl = document.getElementById('overall-sev');
+  sevEl.classList.remove('critical', 'warning', 'moderate', 'stable');
+  if (crit > 0) {
+    sevEl.textContent = 'CRITICAL';
+    sevEl.classList.add('critical');
+  } else if (warn > 0) {
+    sevEl.textContent = 'MEDIUM';
+    sevEl.classList.add('warning');
+  } else if (total > 0) {
+    sevEl.textContent = 'LOW';
+    sevEl.classList.add('moderate');
+  } else {
+    sevEl.textContent = 'STABLE';
+    sevEl.classList.add('stable');
+  }
+
+  // Confidence
+  const avgConf = total > 0 ? cracks.reduce((s, c) => s + c.confidence, 0) / total : 0;
+  document.getElementById('overall-conf').textContent = `${(avgConf * 100).toFixed(1)}%`;
+
+  // Stats
+  const totalLen = cracks.reduce((s, c) => s + c.lengthMm, 0);
+  const maxW = cracks.reduce((m, c) => Math.max(m, c.widthMm), 0);
+  const avgW = total > 0 ? cracks.reduce((s, c) => s + c.widthMm, 0) / total : 0;
+  const totalArea = cracks.reduce((s, c) => s + c.areaPx, 0);
+  const coverage = (totalArea / (state.width * state.height)) * 100;
+  // Surface area in m² (from scale mm/px)
+  const surfaceM2 = (state.width * state.scale / 1000) * (state.height * state.scale / 1000);
+  const density = surfaceM2 > 0 ? total / surfaceM2 : 0;
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-density').innerHTML = `${density.toFixed(1)} <span class="unit">/m²</span>`;
+  document.getElementById('stat-length').innerHTML = `${totalLen.toFixed(1)} <span class="unit">mm</span>`;
+  document.getElementById('stat-maxwidth').innerHTML = `${maxW.toFixed(2)} <span class="unit">mm</span>`;
+  document.getElementById('stat-avgwidth').innerHTML = `${avgW.toFixed(2)} <span class="unit">mm</span>`;
+  document.getElementById('stat-coverage').innerHTML = `${coverage.toFixed(2)} <span class="unit">%</span>`;
+
+  // Distribution bars
+  const maxCnt = Math.max(crit, warn, low, 1);
+  document.getElementById('cnt-crit').textContent = crit;
+  document.getElementById('cnt-warn').textContent = warn;
+  document.getElementById('cnt-low').textContent = low;
+  document.getElementById('dist-crit').style.width = `${(crit/maxCnt)*100}%`;
+  document.getElementById('dist-warn').style.width = `${(warn/maxCnt)*100}%`;
+  document.getElementById('dist-low').style.width = `${(low/maxCnt)*100}%`;
+
+  // Crack list
+  const list = document.getElementById('crack-list');
+  if (cracks.length === 0) {
+    list.innerHTML = `<div style="color: var(--text-dim); font-family: var(--mono); font-size: 10px; padding: 12px 0; text-align: center;">No cracks detected at current threshold</div>`;
+  } else {
+    cracks.sort((a, b) => {
+      const order = {critical: 0, warning: 1, moderate: 2};
+      return order[a.severity] - order[b.severity];
+    });
+    list.innerHTML = cracks.slice(0, 30).map(c => {
+      const color = c.severity === 'critical' ? 'var(--critical)'
+                  : c.severity === 'warning' ? 'var(--warning)'
+                  : 'var(--moderate)';
+      return `
+        <div class="crack-item">
+          <span class="crack-dot" style="background: ${color}"></span>
+          <div class="crack-info">
+            <span class="id">${c.id}</span>
+            <div class="meta">${c.lengthMm.toFixed(1)}mm · w ${c.widthMm.toFixed(2)}mm · ${c.orientation}</div>
+          </div>
+          <span class="crack-conf">${(c.confidence*100).toFixed(0)}%</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('results-subtitle').textContent =
+    `${total} instance${total !== 1 ? 's' : ''} · ${state.threshold.toFixed(2)} threshold`;
+}
+
+// =========================================================================
+// Sliders
+// =========================================================================
+document.getElementById('thresh-slider').addEventListener('input', (e) => {
+  state.threshold = parseInt(e.target.value) / 100;
+  document.getElementById('thresh-val').textContent = state.threshold.toFixed(2);
+});
+document.getElementById('minlen-slider').addEventListener('input', (e) => {
+  state.minLength = parseInt(e.target.value);
+  document.getElementById('minlen-val').textContent = state.minLength;
+});
+document.getElementById('scale-slider').addEventListener('input', (e) => {
+  state.scale = parseInt(e.target.value) / 100;
+  document.getElementById('scale-val').textContent = state.scale.toFixed(2);
+});
+
+// =========================================================================
+// Run button
+// =========================================================================
+document.getElementById('run-btn').addEventListener('click', runDetection);
+
+// =========================================================================
+// Export
+// =========================================================================
+document.getElementById('export-btn').addEventListener('click', () => {
+  if (!state.results) {
+    alert('Run detection first.');
+    return;
+  }
+  const report = {
+    timestamp: new Date().toISOString(),
+    site: 'Koubba des Almoravides, Marrakech',
+    image: { width: state.width, height: state.height },
+    parameters: {
+      threshold: state.threshold,
+      minLength: state.minLength,
+      scaleMmPerPx: state.scale
+    },
+    summary: {
+      totalCracks: state.results.cracks.length,
+      critical: state.results.cracks.filter(c => c.severity === 'critical').length,
+      medium: state.results.cracks.filter(c => c.severity === 'warning').length,
+      low: state.results.cracks.filter(c => c.severity === 'moderate').length
+    },
+    cracks: state.results.cracks.map(c => ({
+      id: c.id,
+      severity: c.severity,
+      lengthMm: +c.lengthMm.toFixed(2),
+      widthMm: +c.widthMm.toFixed(3),
+      areaPx: c.areaPx,
+      confidence: +c.confidence.toFixed(3),
+      orientation: c.orientation,
+      angleDeg: +c.angle.toFixed(1),
+      bbox: c.bbox
+    }))
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `hscan_report_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// =========================================================================
+// Utils
+// =========================================================================
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// =========================================================================
+// Init
+// =========================================================================
+initTF();
+</script>
+
+</body>
+</html>
